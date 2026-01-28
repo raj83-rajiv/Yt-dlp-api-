@@ -5,7 +5,7 @@ const app = express();
 
 app.use(cors());
 
-app.get("/", (req, res) => res.send("🔥 Puppeteer Bridge is Ready!"));
+app.get("/", (req, res) => res.send("🔥 Puppeteer Bridge Active!"));
 
 app.get("/solve", async (req, res) => {
   const url = req.query.url;
@@ -15,7 +15,7 @@ app.get("/solve", async (req, res) => {
   try {
     console.log(`[BROWSER] Opening: ${url}`);
     
-    // Browser Launch (Minimal settings ke saath)
+    // Launch Browser
     browser = await puppeteer.launch({
       headless: "new",
       args: [
@@ -33,30 +33,23 @@ app.get("/solve", async (req, res) => {
 
     const page = await browser.newPage();
     
-    // Real User-Agent (Cloudflare ko dhoka dene ke liye)
+    // Fake User-Agent (Important)
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-    // Link pe jao aur Cloudflare challenge solve hone ka wait karo
+    // Go to URL and wait for Cloudflare check
     await page.goto(`https://downloader.k0mraidhost.name.ng/download/youtube/video?url=${encodeURIComponent(url)}`, {
-      waitUntil: 'networkidle2', // Wait jab tak page load band na ho
-      timeout: 60000 // 60 seconds timeout
+      waitUntil: 'networkidle2', 
+      timeout: 60000 
     });
 
-    // Page ka text (JSON) nikalo
+    // Get JSON content
     const content = await page.evaluate(() => document.body.innerText);
 
     try {
       const json = JSON.parse(content);
-      // Agar success: true hai to return karo
-      if (json.success || json.result) {
-        res.json(json);
-      } else {
-         // Agar JSON hai par error hai
-         res.status(500).json({ error: "API returned error", data: json });
-      }
+      res.json(json);
     } catch (e) {
-      // Agar JSON nahi hai (matlab abhi bhi HTML page hai)
-      res.status(500).json({ error: "Cloudflare not bypassed", content_preview: content.substring(0, 100) });
+      res.status(500).json({ error: "Not a JSON response", preview: content.substring(0, 100) });
     }
 
   } catch (err) {
