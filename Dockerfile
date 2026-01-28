@@ -1,23 +1,23 @@
-# Official Puppeteer image use kar rahe hain taaki dependency ka error na aaye
+# Official Puppeteer image (Chrome pre-installed)
 FROM ghcr.io/puppeteer/puppeteer:21.5.2
 
-# Environment variables set karo
+# Skip downloading Chrome again (Use installed one)
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 WORKDIR /usr/src/app
 
-# Pehle sirf package files copy karo
+# Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# 🔥 CHANGE HERE: 'npm ci' ki jagah 'npm install' (Fixes Build Error)
+RUN npm install
 
-# Baaki code copy karo
+# Copy rest of the code
 COPY . .
 
-# Port expose karo
+# Expose Port
 EXPOSE 8000
 
-# Server start karo
+# Start Server
 CMD [ "node", "index.js" ]
