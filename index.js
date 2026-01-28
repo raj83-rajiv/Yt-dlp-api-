@@ -1,61 +1,61 @@
 const express = require("express");
-const { spawn } = require("child_process");
+const puppeteer = require("puppeteer");
 const cors = require("cors");
-const axios = require("axios"); // Axios add kiya
 const app = express();
 
 app.use(cors());
 
-// --- ROOT ---
-app.get("/", (req, res) => {
-  res.send({ status: "Online", message: "🔥 Koyeb Proxy & Downloader is Running!" });
-});
+app.get("/", (req, res) => res.send("🔥 Puppeteer Bridge Active!"));
 
-// --- 1. K0MRAID METADATA PROXY (JSON Relay) ---
-app.get("/k0mraid-meta", async (req, res) => {
+app.get("/solve", async (req, res) => {
   const url = req.query.url;
-  if (!url) return res.json({ error: "URL missing" });
+  if (!url) return res.status(400).json({ error: "URL missing" });
 
+  let browser;
   try {
-    // Koyeb (Clean IP) calls k0mraidhost
-    console.log(`[PROXY-META] Fetching: ${url}`);
-    const { data } = await axios.get(`https://downloader.k0mraidhost.name.ng/download/youtube/video?url=${encodeURIComponent(url)}`, {
-      headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://google.com'
-      }
-    });
-    res.json(data); // Send clean JSON back to Bot
-  } catch (err) {
-    res.status(500).json({ error: err.message, stack: err.response?.data });
-  }
-});
-
-// --- 2. K0MRAID VIDEO STREAM PROXY (Stream Relay) ---
-app.get("/k0mraid-stream", async (req, res) => {
-  const link = req.query.link; // Actual download link from k0mraid
-  if (!link) return res.status(400).send("Link missing");
-
-  try {
-    console.log(`[PROXY-STREAM] Piping video...`);
-    const response = await axios({
-      url: link,
-      method: 'GET',
-      responseType: 'stream',
-      headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
-      }
+    console.log(`[BROWSER] Opening: ${url}`);
+    
+    // 1. Browser Launch Karo
+    browser = await puppeteer.launch({
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--single-process",
+        "--no-zygote"
+      ],
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH
     });
 
-    // Headers copy karo taaki WhatsApp ko pata chale ye video hai
-    res.header("Content-Type", response.headers['content-type']);
-    res.header("Content-Length", response.headers['content-length']);
-    res.header("Content-Disposition", `attachment; filename="video.mp4"`);
+    const page = await browser.newPage();
+    
+    // User-Agent set karo taaki real lage
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-    // Pipe: k0mraid -> Koyeb -> Bot
-    response.data.pipe(res);
+    // 2. Page pe jao aur wait karo
+    await page.goto(`https://downloader.k0mraidhost.name.ng/download/youtube/video?url=${encodeURIComponent(url)}`, {
+      waitUntil: 'networkidle2', // Wait jab tak loading band na ho jaye
+      timeout: 60000 // 60 sec timeout
+    });
+
+    // 3. Body ka text (JSON) uthao
+    // Cloudflare check ke baad jo asli JSON bachega, wo ye utha lega
+    const content = await page.evaluate(() => document.body.innerText);
+
+    try {
+      const json = JSON.parse(content);
+      res.json(json);
+    } catch (e) {
+      // Agar JSON parse nahi hua, matlab abhi bhi Cloudflare page pe hai
+      res.status(500).json({ error: "Cloudflare not bypassed", body: content.substring(0, 200) });
+    }
+
   } catch (err) {
-    res.status(500).send("Stream Error");
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (browser) await browser.close();
   }
 });
 
